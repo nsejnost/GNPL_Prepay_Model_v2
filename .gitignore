@@ -1,0 +1,16 @@
+# Raw GNMA data is hosted as a GitHub Release asset, not in the repo.
+gnma_mf_raw_data*.parquet
+gnma_mf_raw_data*.csv*
+gnma_mf_data/
+
+# Local training artefacts that are reproducible from train_model.py
+model/test_predictions.parquet
+model/python_replication.csv
+model/__pycache__/
+__pycache__/
+*.pyc
+
+# Editor / OS detritus
+.DS_Store
+.idea/
+.vscode/
