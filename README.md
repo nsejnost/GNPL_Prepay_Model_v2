@@ -110,35 +110,82 @@ SMM if a calibration adjustment is desired.
 
 ## Reproducing the workbook
 
+The pipeline has five stages. The easiest way to invoke any subset is
+the orchestrator at the repo root:
+
 ```bash
-# 1. Run the GNMA ETL (or download the prebuilt parquet from the
-#    GitHub release).
-python3 main.py --skip-download   # if you already have data
+python3 run.py             # interactive menu — pick stages by number
+python3 run.py --retrain   # stages 2-5 (re-fit + refresh deliverables)
+python3 run.py --all       # every stage (needs gnma_mf_data/ for stage 1)
+python3 run.py 4           # rebuild only the Excel workbook
+python3 run.py train excel # by stage key instead of number
+```
 
-# 2. Re-train the model.
-python3 model/train_model.py
+### Stages and dependency graph
 
-# 3. Rebuild the Excel workbook from the latest coefficients.
-python3 model/build_excel.py
+```
+ 1. main.py              ──►  gnma_mf_raw_data.parquet
+ 2. model/train_model.py ──►  model/coefficients.csv  +  feature_metadata.json
+                          │   model/calibration.csv   +  segment_validation.csv
+                          │
+              ┌───────────┼───────────┐
+              ▼                       ▼
+ 3. model/predict_python.py    4. model/build_excel.py
+        │                            │
+        ▼                            ▼
+ model/python_predictions.csv   GNPL_Prepay_Model.xlsx
+        │
+        ▼
+ 5. webapp/build_data.py  ──►  webapp/PrepayExplorer.jsx
+                                (in-place MODEL_DATA refresh)
+```
 
-# 4. (Optional) Score loans in Python without opening Excel.
+Stages 3 and 4 are siblings — both consume stage 2's artefacts but
+neither depends on the other. Stage 5 needs stage 3's
+`python_predictions.csv` for its self-test fixture.
+
+### Running stages manually
+
+If you'd rather skip the orchestrator:
+
+```bash
+python3 main.py --skip-download             # 1. ETL    (rebuilds parquet)
+python3 model/train_model.py                # 2. train  (re-fit model)
+python3 model/predict_python.py             # 3. predict (score sample_loans.csv)
+python3 model/build_excel.py                # 4. excel  (rebuild .xlsx)
+python3 webapp/build_data.py                # 5. webapp (refresh JSX)
+```
+
+To score a different portfolio:
+
+```bash
 python3 model/predict_python.py --input mydata.csv --output mypreds.csv
 ```
 
-The PLC-rate history and vintage-median-rate files are pre-computed
-from the parquet (`model/plc_rates_history.csv`,
-`model/vintage_median_rates.csv`) and used both by the Excel formulas
-and the Python reference scorer.
+### When to re-run `main.py`
+
+Stages 2-5 read the parquet but never modify it, so once it exists you
+can iterate freely on the model layer without rebuilding. You only need
+to re-run `main.py` when **(a)** new monthly GNMA disclosure files have
+been added to `gnma_mf_data/`, or **(b)** the panel-build / ETL logic
+itself has changed (parsing, filters, feature engineering inside
+`main.py`). In day-to-day model iteration, `python3 run.py --retrain`
+is the right loop.
+
+The PLC-rate history and vintage-median-rate files
+(`model/plc_rates_history.csv`, `model/vintage_median_rates.csv`) are
+pre-computed from the parquet and used by both the Excel formulas and
+the Python reference scorer.
 
 ## Running on Replit
 
 Import the GitHub repo into a fresh Replit project. The `.replit` file
-wires the Run button to a help banner; pick the stage you want to run.
+wires the Run button to `python3 run.py`, so clicking Run drops you
+straight into the interactive pipeline menu described above.
 
 ```bash
-pip install -r requirements.txt           # one-time dep install
-python3 model/train_model.py              # re-fit (needs the parquet)
-python3 model/build_excel.py              # rebuild the workbook
+pip install -r requirements.txt   # one-time dep install (Replit auto-runs this)
+python3 run.py                    # then click Run, or invoke from the shell
 ```
 
 Two important notes:
