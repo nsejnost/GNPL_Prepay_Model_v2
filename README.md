@@ -11,8 +11,10 @@ that produce the differences.
 
 ```
 GNPL_Prepay_Model.xlsx                ← main deliverable (open this)
-main.py                               ← raw GNMA-disclosure ETL (unchanged)
+main.py                               ← raw GNMA-disclosure ETL
 README.md                             ← this file
+requirements.txt                      ← Python dependency list
+.replit, replit.nix                   ← Replit project config
 BAM_gnpl_model_flipbook_202205_final.pdf
 Ginnie_Project_CMBS_Primer_Cantor.pdf
 Project Loan Model Citi.pdf
@@ -70,7 +72,7 @@ log( SMM/(1−SMM) ) = β₀
                      + Σ β_fha·1[fha_category]            ← FHA program (vs 223f)
                      + β_nc·1[loan_purpose = NC]          ← purpose
                      + Σ β_aff·1[affordable_status]       ← affordable
-                     + β_mod·1[modified] + β_nl·1[non-level] + β_mat·1[mature]
+                     + Σ β_pool·1[pool_type ∈ {LM,PN,LS,RX}]    ← pool-type effects
 ```
 
 `f_x(·)` is a hinge basis: `f(x) = β_lin·x + Σ β_k·max(x − knot_k, 0)`,
@@ -127,6 +129,35 @@ The PLC-rate history and vintage-median-rate files are pre-computed
 from the parquet (`model/plc_rates_history.csv`,
 `model/vintage_median_rates.csv`) and used both by the Excel formulas
 and the Python reference scorer.
+
+## Running on Replit
+
+Import the GitHub repo into a fresh Replit project. The `.replit` file
+wires the Run button to a help banner; pick the stage you want to run.
+
+```bash
+pip install -r requirements.txt           # one-time dep install
+python3 model/train_model.py              # re-fit (needs the parquet)
+python3 model/build_excel.py              # rebuild the workbook
+```
+
+Two important notes:
+
+1. **The 1.3 M-row parquet is gitignored** (it would exceed GitHub's
+   100 MB hard limit). After importing, either drag-and-drop
+   `gnma_mf_raw_data.parquet` into the repo root via the Replit file
+   tree, or download it from this repo's GitHub release assets. None
+   of the model scripts will work until that file is in place.
+
+2. **Memory**: training touches the full panel and peaks around 2 GB.
+   Replit's free tier won't survive `train_model.py`; a Boost / Pro
+   account is required. The Excel build (`build_excel.py`) and the
+   reference scorer (`predict_python.py`) are well under 1 GB.
+
+To enable live GNMA Disclosure downloads from Replit (instead of using
+the prebuilt parquet), uncomment `playwright>=1.40` in
+`requirements.txt` and uncomment the browser system packages in
+`replit.nix`.
 
 ## Known limitations
 
