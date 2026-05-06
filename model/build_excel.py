@@ -316,10 +316,13 @@ def write_parameters(ws):
         "aff_aff":    "Affordable status = AFF dummy",
         "aff_baf":    "Affordable status = BAF dummy",
         "aff_mkt":    "Affordable status = MKT dummy",
-        # flags
-        "is_modified":  "Loan has been modified (Modified Indicator = Y)",
-        "is_non_level": "Non-level amortization indicator",
-        "is_mature":    "Mature loan flag",
+        # pool-type flags (live signal — legacy modified_ind/non_level_ind/
+        # mature_loan_flag are blank in modern panel; pool_type carries
+        # the modification/non-level/small-balance signal directly)
+        "is_lm_pool": "Pool type = LM (Mature/Modified — IRR refi destination)",
+        "is_pn_pool": "Pool type = PN (Non-Level amortization, dominant Project Loan pool)",
+        "is_ls_pool": "Pool type = LS (Small-Balance Loan)",
+        "is_rx_pool": "Pool type = RX (Mark-to-Market)",
     }
 
     def comp_of(name: str) -> str:
@@ -335,7 +338,7 @@ def write_parameters(ws):
         if name.startswith("fha"):     return "FHA"
         if name.startswith("is_nc"):   return "PURPOSE"
         if name.startswith("aff"):     return "AFFORDABLE"
-        if name.startswith("is_"):     return "MOD"
+        if name.startswith("is_"):     return "POOL"
         return "OTHER"
 
     row = 6
@@ -594,17 +597,21 @@ def write_loan_input(ws) -> int:
         ("fha_other",
          "FHAOTHER",
          ),
-        ("is_modified",
-         "ISMOD",
-         input_header_to_col["modified_ind"],
+        ("is_lm_pool",
+         "ISLM",
+         input_header_to_col["pool_type"],
          ),
-        ("is_non_level",
-         "ISNL",
-         input_header_to_col["non_level_ind"],
+        ("is_pn_pool",
+         "ISPN",
+         input_header_to_col["pool_type"],
          ),
-        ("is_mature",
-         "ISMAT",
-         input_header_to_col["mature_loan_flag"],
+        ("is_ls_pool",
+         "ISLS",
+         input_header_to_col["pool_type"],
+         ),
+        ("is_rx_pool",
+         "ISRX",
+         input_header_to_col["pool_type"],
          ),
     ]
 
@@ -625,7 +632,7 @@ def write_loan_input(ws) -> int:
         "FHA_logodds",
         "PURPOSE_logodds",
         "AFF_logodds",
-        "MOD_logodds",
+        "POOL_logodds",
     ]
     for c in components:
         layout.append((c, "LOGODDS", None))
@@ -651,7 +658,7 @@ def write_loan_input(ws) -> int:
         ("CPR_attr_FHA", "PRED"),
         ("CPR_attr_PURPOSE", "PRED"),
         ("CPR_attr_AFF", "PRED"),
-        ("CPR_attr_MOD", "PRED"),
+        ("CPR_attr_POOL", "PRED"),
     ]
     for h, g in pred_cols:
         layout.append((h, g, None))
@@ -848,13 +855,17 @@ def write_loan_input(ws) -> int:
         ]:
             f(HC[hdr], f'=IF({HC["fha_category"]}{r}="{cat}",1,0)')
 
-        # is_modified / is_non_level / is_mature
-        f(HC["is_modified"],
-          f'=IF(UPPER(TRIM({HC["modified_ind"]}{r}))="Y",1,0)')
-        f(HC["is_non_level"],
-          f'=IF(UPPER(TRIM({HC["non_level_ind"]}{r}))="Y",1,0)')
-        f(HC["is_mature"],
-          f'=IF(UPPER(TRIM({HC["mature_loan_flag"]}{r}))="Y",1,0)')
+        # Pool-type-derived flags (replaces is_modified / is_non_level /
+        # is_mature, which are 0 in 100% of the modern panel — see
+        # SanCap primer; pool_type carries the modification signal).
+        f(HC["is_lm_pool"],
+          f'=IF(UPPER(TRIM({HC["pool_type"]}{r}))="LM",1,0)')
+        f(HC["is_pn_pool"],
+          f'=IF(UPPER(TRIM({HC["pool_type"]}{r}))="PN",1,0)')
+        f(HC["is_ls_pool"],
+          f'=IF(UPPER(TRIM({HC["pool_type"]}{r}))="LS",1,0)')
+        f(HC["is_rx_pool"],
+          f'=IF(UPPER(TRIM({HC["pool_type"]}{r}))="RX",1,0)')
 
         # ── LOG-ODDS CONTRIBUTIONS ─────────────────────────────────
         # Build piecewise-linear hinge sums for each spline group.
@@ -936,11 +947,12 @@ def write_loan_input(ws) -> int:
           f'+{coef_cell("aff_baf")}*{HC["aff_baf"]}{r}'
           f'+{coef_cell("aff_mkt")}*{HC["aff_mkt"]}{r}')
 
-        # MOD
-        f(HC["MOD_logodds"],
-          f'={coef_cell("is_modified")}*{HC["is_modified"]}{r}'
-          f'+{coef_cell("is_non_level")}*{HC["is_non_level"]}{r}'
-          f'+{coef_cell("is_mature")}*{HC["is_mature"]}{r}')
+        # POOL (pool-type-derived contributions)
+        f(HC["POOL_logodds"],
+          f'={coef_cell("is_lm_pool")}*{HC["is_lm_pool"]}{r}'
+          f'+{coef_cell("is_pn_pool")}*{HC["is_pn_pool"]}{r}'
+          f'+{coef_cell("is_ls_pool")}*{HC["is_ls_pool"]}{r}'
+          f'+{coef_cell("is_rx_pool")}*{HC["is_rx_pool"]}{r}')
 
         # ── PREDICTION ─────────────────────────────────────────────
         f(HC["intercept_logodds"], "=Parameters!$B$2")
@@ -950,7 +962,7 @@ def write_loan_input(ws) -> int:
             "REFI_logodds", "AGE_logodds", "PEN_logodds", "SATO_logodds",
             "SIZE_logodds", "M2M_logodds", "MPL_logodds", "INTERACT_logodds",
             "PHASE_logodds", "FHA_logodds", "PURPOSE_logodds",
-            "AFF_logodds", "MOD_logodds"])
+            "AFF_logodds", "POOL_logodds"])
         f(HC["total_logodds"],
           f'={HC["intercept_logodds"]}{r}+{comp_cells}')
 
@@ -986,7 +998,7 @@ def write_loan_input(ws) -> int:
             ("FHA",  HC["FHA_logodds"]),
             ("PURPOSE", HC["PURPOSE_logodds"]),
             ("AFF",  HC["AFF_logodds"]),
-            ("MOD",  HC["MOD_logodds"]),
+            ("POOL", HC["POOL_logodds"]),
         ]:
             attr_col = HC[f"CPR_attr_{comp_name}"]
             f(attr_col,
@@ -1135,7 +1147,7 @@ def write_deal_summary(ws, loan_ws, n_loans):
     attr_cols = {
         comp: loan_col(f"CPR_attr_{comp}")
         for comp in ["REFI", "AGE", "PEN", "SATO", "SIZE", "M2M", "MPL",
-                     "INTERACT", "PHASE", "FHA", "PURPOSE", "AFF", "MOD"]
+                     "INTERACT", "PHASE", "FHA", "PURPOSE", "AFF", "POOL"]
     }
     rng_attr = {
         comp: f"Loan_Input!${col}$3:${col}${n_loans + 2}"
@@ -1193,7 +1205,7 @@ def write_deal_summary(ws, loan_ws, n_loans):
         # weighted attribution columns
         col_idx = 15
         for comp in ["REFI", "AGE", "PEN", "SATO", "SIZE", "M2M", "MPL",
-                     "INTERACT", "PHASE", "FHA", "PURPOSE", "AFF", "MOD"]:
+                     "INTERACT", "PHASE", "FHA", "PURPOSE", "AFF", "POOL"]:
             rng = rng_attr[comp]
             ws.cell(row=r, column=col_idx,
                     value=f'=IF({deal_ref}="","",'

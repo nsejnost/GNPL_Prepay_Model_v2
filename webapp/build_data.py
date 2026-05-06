@@ -279,6 +279,10 @@ reference_loan = {
     "affordable_status":     str(train["affordable_status"].fillna("MKT").mode().iloc[0] or "MKT"),
     "in_lockout":            0,
     "in_prepay_penalty":     int(train["in_prepay_penalty"].mean() > 0.5),
+    # Pool-type feeds the live modification/non-level/small-balance
+    # signal; the legacy *_ind columns are blank in modern data but
+    # kept for input-row backwards compatibility.
+    "pool_type":             str(train["pool_type"].mode().iloc[0]),
     "modified_ind":          "N",
     "non_level_ind":         "N",
     "mature_loan_flag":      "N",
@@ -302,7 +306,7 @@ fixture_cols_in = [
     "deal_id", "period", "loan_rate", "upb", "origination_date",
     "loan_maturity_date", "lockout_end_date", "prepay_end_date",
     "prepay_premium_period_yrs", "fha_program_code", "affordable_status",
-    "modified_ind", "non_level_ind", "mature_loan_flag",
+    "pool_type", "modified_ind", "non_level_ind", "mature_loan_flag",
     # overrides that take precedence in predict_python
     "loan_age_months", "vintage_year", "sato_bps",
     "prepay_penalty_points", "plc_rate_bps", "refi_incentive_bps",
@@ -322,7 +326,7 @@ proj_cols = [
     "deal_id", "period", "loan_rate", "upb", "origination_date",
     "loan_maturity_date", "lockout_end_date", "prepay_end_date",
     "prepay_premium_period_yrs", "fha_program_code", "affordable_status",
-    "modified_ind", "non_level_ind", "mature_loan_flag",
+    "pool_type", "modified_ind", "non_level_ind", "mature_loan_flag",
 ]
 proj_cols = [c for c in proj_cols if c in SAMPLE.columns]
 seed = SAMPLE[proj_cols].head(8).copy()

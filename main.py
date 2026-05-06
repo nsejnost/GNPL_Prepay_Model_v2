@@ -803,13 +803,18 @@ def read_mfplmon3(filepath):
                 print(f"  i {fname}: V1.0 layout detected "
                       f"({detected_field_count} fields)")
             else:
-                layout, LX, PX = None, L, P
+                # Hard-fail: refuse to parse with unknown field positions.
+                # Earlier code silently fell back to V3.3 dicts and kept
+                # going, which would shift every field on a new GNMA layout
+                # without anyone noticing. Skipping the file is the right
+                # behaviour — the next regen will surface the warning and
+                # we add the new layout dict before continuing.
                 print(f"  ! {fname}: unrecognized layout "
                       f"({detected_field_count} fields, expected "
                       f"{V33_FIELD_COUNT}/{V31V32_FIELD_COUNT}/"
                       f"{V30_FIELD_COUNT}/{V20_FIELD_COUNT}/"
-                      f"{V10_FIELD_COUNT}); loan-level parsing will "
-                      f"be skipped")
+                      f"{V10_FIELD_COUNT}); skipping file")
+                return []
 
         pt = flds[PX['pool_type']].strip()
         def g(idx): return flds[idx].strip() if len(flds) > idx else ''
@@ -889,8 +894,11 @@ def read_mfplmon3(filepath):
                 'affordable_status': aff_status,
             })
         else:
-            rec.update({'loan_id': cusip + '_POOL', 'case_number': '',
-                        'loan_rate': np.nan, 'upb': np.nan})
+            # Truncated loan-level line: skip rather than emit a fake
+            # `_POOL` placeholder. The placeholder rows would carry NaN
+            # loan_rate / upb and silently flow into the panel, where
+            # they could mis-flag exits or contaminate aggregates.
+            continue
         records.append(rec)
     return records
 
@@ -992,11 +1000,6 @@ def get_current_penalty_points(prepay_desc, prepay_end_yyyymm, prepay_premium_pe
         if total_period_yrs > 0:
             return min(years_remaining, total_period_yrs)
         return years_remaining
-    """Parse YYYYMMDD or YYYYMM string to a comparable YYYYMM string."""
-    s = (s or '').strip()
-    if len(s) >= 6:
-        return s[:6]
-    return ''
 
 
 # ─── FHA program classification ────────────────────────────────
@@ -1262,12 +1265,28 @@ def build_analytics(file_by_period):
             r['is_seriously_dq'] = 1 if mdq >= 3 else 0
 
             # ── Modification / non-level / mature flags ────────────
+            # Loan-level disclosure flags `modified_ind`, `non_level_ind`,
+            # `mature_loan_flag` are populated as 0 in 100% of the modern
+            # GNMA panel — kept for backwards compatibility but the live
+            # signal lives in `pool_type`. Empirically:
+            #   LM (Mature/Modified)   → has_been_modified = TRUE
+            #   PN (Non-Level)         → has_non_level_amort = TRUE
+            #   LS (Small-Balance)     → small balance pool
+            #   RX (Mark-to-Market)    → re-modified pool
+            # See SanCap "Project Loan Refi Incentive" primer: LM is the
+            # destination for HUD's IRR re-securitisation program, so an
+            # LM-pool loan has already been refinanced once.
             mod_ind = (r.get('modified_ind', '') or '').strip().upper()
             r['is_modified'] = 1 if mod_ind == 'Y' else 0
             non_level = (r.get('non_level_ind', '') or '').strip().upper()
             r['is_non_level'] = 1 if non_level == 'Y' else 0
             mature_flag = (r.get('mature_loan_flag', '') or '').strip().upper()
             r['is_mature_loan'] = 1 if mature_flag == 'Y' else 0
+            # Pool-type-derived flags (the live signal — see above).
+            r['is_lm_pool'] = 1 if pool_type == 'LM' else 0
+            r['is_pn_pool'] = 1 if pool_type == 'PN' else 0
+            r['is_ls_pool'] = 1 if pool_type == 'LS' else 0
+            r['is_rx_pool'] = 1 if pool_type == 'RX' else 0
 
             # ── FHA program classification (dummies + categorical) ─
             fha = r.get('fha_program_code', '')
@@ -1534,6 +1553,34 @@ def build_analytics(file_by_period):
             print(f"  ! reset {n_false} false-positive exit(s) where "
                   f"the loan reappeared in a later period")
 
+    # ── Defensive invariants on prepay flags ─────────────────────────
+    # These have all held empirically as of 2026-05; the asserts catch
+    # any future regression in the streaming/post-pass logic.
+    #
+    # Note on case_number reappearing under a different cusip: this is
+    # NOT a contamination case. Per SanCap "Project Loan Refi Incentive",
+    # loans refinanced via HUD's Interest Rate Reduction (IRR) program
+    # are paid off in full from the original pool (with prepay penalty
+    # applied) and re-pooled into a new LM (Modified) pool — that IS a
+    # voluntary prepayment from the original pool's perspective, even
+    # though the same case_number reappears. ~98% of such reappearances
+    # land in LM pools, matching the IRR pattern.
+    if 'prepaid_voluntary' in df.columns and 'prepaid_involuntary' in df.columns:
+        both = ((df['prepaid_voluntary'] == 1) & (df['prepaid_involuntary'] == 1))
+        assert int(both.sum()) == 0, \
+            f"invariant violated: {int(both.sum())} row(s) have both " \
+            "prepaid_voluntary==1 AND prepaid_involuntary==1"
+    if 'is_construction_phase' in df.columns:
+        cl_with_flag = ((df['is_construction_phase'] == 1) &
+                        ((df['prepaid_voluntary']   == 1) |
+                         (df['prepaid_involuntary'] == 1)))
+        assert int(cl_with_flag.sum()) == 0, \
+            f"invariant violated: {int(cl_with_flag.sum())} construction " \
+            "row(s) carry a prepay flag (CL/CS conversions are " \
+            "pool relabelings, not prepayments)"
+        print(f"  ok prepay-flag invariants hold "
+              f"(0 dual-flag rows, 0 construction-with-flag rows)")
+
     # ── Note: GNMA source-data quirks left in place (NOT fixed) ─────
     # A handful of loans (15 of 27,348 ≈ 0.05%) have lockout_end_date
     # and prepay_end_date swapped in the source GNMA disclosure data.
@@ -1666,8 +1713,8 @@ def write_csv(df):
     try:
         df.to_parquet(parquet_path, index=False, compression='snappy')
         parquet_msg = f"\n  ok {parquet_path} ({os.path.getsize(parquet_path)//1024} KB)"
-    except (ImportError, Exception) as e:
-        parquet_msg = f"\n  i parquet output skipped: {e}"
+    except ImportError as e:
+        parquet_msg = f"\n  i parquet output skipped (pyarrow not installed): {e}"
 
     # Derive period stats from the DataFrame (monthly_data is freed before this
     # call so we can't rely on it here).
