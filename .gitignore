@@ -14,3 +14,12 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Replit runtime
+.upm/
+.config/
+.cache/
+replit.nix.lock
+.breakpoints
+venv/
+.venv/
