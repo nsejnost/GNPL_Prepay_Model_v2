@@ -1,5 +1,5 @@
 {
-  "intercept": -6.439353556936258,
+  "intercept": -6.583065278239806,
   "feature_names": [
     "refi_lin",
     "refi_k-150",
@@ -51,9 +51,10 @@
     "aff_aff",
     "aff_baf",
     "aff_mkt",
-    "is_modified",
-    "is_non_level",
-    "is_mature"
+    "is_lm_pool",
+    "is_pn_pool",
+    "is_ls_pool",
+    "is_rx_pool"
   ],
   "knots": {
     "refi": [
@@ -109,10 +110,10 @@
   "test_n": 308876,
   "train_events": 8881,
   "test_events": 749,
-  "train_auc": 0.7696303109019891,
-  "test_auc": 0.579159396298382,
-  "train_pred_cpr_pct": 10.847772224571505,
-  "test_pred_cpr_pct": 4.218868532841946,
+  "train_auc": 0.7692501007426275,
+  "test_auc": 0.5860360155240988,
+  "train_pred_cpr_pct": 10.844768157311824,
+  "test_pred_cpr_pct": 4.247882960521454,
   "train_actual_cpr_pct": 10.85395435171186,
   "test_actual_cpr_pct": 2.8714079823017324
 }

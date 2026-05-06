@@ -216,9 +216,15 @@ def predict_one(row: pd.Series) -> dict:
     aff_baf = 1 if aff == "BAF" else 0
     aff_mkt = 1 if aff == "MKT" else 0
 
-    is_modified  = 1 if str(row.get("modified_ind")  or "").upper().strip() == "Y" else 0
-    is_non_level = 1 if str(row.get("non_level_ind") or "").upper().strip() == "Y" else 0
-    is_mature    = 1 if str(row.get("mature_loan_flag") or "").upper().strip() == "Y" else 0
+    # Pool-type-derived flags. The legacy modified_ind/non_level_ind/
+    # mature_loan_flag fields are blank in the modern panel; pool_type
+    # carries the live signal (LM=Mature/Modified, PN=Non-Level, LS=
+    # Small-Balance, RX=Mark-to-Market). See SanCap primer.
+    pool_type = str(row.get("pool_type") or "").upper().strip()
+    is_lm_pool = 1 if pool_type == "LM" else 0
+    is_pn_pool = 1 if pool_type == "PN" else 0
+    is_ls_pool = 1 if pool_type == "LS" else 0
+    is_rx_pool = 1 if pool_type == "RX" else 0
 
     # ── Component log-odds contributions ────────────────────────────
     refi_lo = piecewise_logodds(refi_inc, META["knots"]["refi"], "refi_lin", "refi_k")
@@ -237,9 +243,10 @@ def predict_one(row: pd.Series) -> dict:
     purp_lo = COEFS["is_nc"] * is_nc
     aff_lo  = (COEFS["aff_aff"] * aff_aff + COEFS["aff_baf"] * aff_baf +
                COEFS["aff_mkt"] * aff_mkt)
-    mod_lo  = (COEFS["is_modified"]  * is_modified  +
-               COEFS["is_non_level"] * is_non_level +
-               COEFS["is_mature"]    * is_mature)
+    pool_lo = (COEFS["is_lm_pool"] * is_lm_pool +
+               COEFS["is_pn_pool"] * is_pn_pool +
+               COEFS["is_ls_pool"] * is_ls_pool +
+               COEFS["is_rx_pool"] * is_rx_pool)
 
     components = {
         "REFI":     refi_lo,
@@ -254,7 +261,7 @@ def predict_one(row: pd.Series) -> dict:
         "FHA":      fha_lo,
         "PURPOSE":  purp_lo,
         "AFF":      aff_lo,
-        "MOD":      mod_lo,
+        "POOL":     pool_lo,
     }
     total_lo = INTERCEPT + sum(components.values())
 

@@ -228,11 +228,15 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     extras["aff_baf"]  = (aff == "BAF").astype(int)
     extras["aff_mkt"]  = (aff == "MKT").astype(int)
 
-    # Modification / non-level / mature flags. These are credit-quality
-    # signals; modified loans tend to be slower (already restructured).
-    extras["is_modified"]  = df["is_modified"].astype(int)
-    extras["is_non_level"] = df["is_non_level"].astype(int)
-    extras["is_mature"]    = df["is_mature_loan"].astype(int)
+    # Pool-type-derived flags. The legacy modified_ind/non_level_ind/
+    # mature_loan_flag columns are 0 in 100% of the modern panel; the
+    # live signal lives in pool_type. LM (Mature/Modified) pools are
+    # the destination of HUD's IRR re-securitisation refis (see SanCap
+    # primer), so an LM-pool loan has already been refinanced once.
+    extras["is_lm_pool"] = df["is_lm_pool"].astype(int)
+    extras["is_pn_pool"] = df["is_pn_pool"].astype(int)
+    extras["is_ls_pool"] = df["is_ls_pool"].astype(int)
+    extras["is_rx_pool"] = df["is_rx_pool"].astype(int)
 
     parts.append(extras)
     X = pd.concat(parts, axis=1)
