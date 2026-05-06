@@ -14,7 +14,7 @@ GNPL_Prepay_Model.xlsx                ← main deliverable (open this)
 main.py                               ← raw GNMA-disclosure ETL
 README.md                             ← this file
 requirements.txt                      ← Python dependency list
-.replit, replit.nix                   ← Replit project config
+.replit                               ← Replit project config
 BAM_gnpl_model_flipbook_202205_final.pdf
 Ginnie_Project_CMBS_Primer_Cantor.pdf
 Project Loan Model Citi.pdf
@@ -203,8 +203,11 @@ Two important notes:
 
 To enable live GNMA Disclosure downloads from Replit (instead of using
 the prebuilt parquet), uncomment `playwright>=1.40` in
-`requirements.txt` and uncomment the browser system packages in
-`replit.nix`.
+`requirements.txt` and add a `replit.nix` declaring the browser system
+packages (`firefox-esr` / `chromium` / `nss` / `libgbm` / `ffmpeg`).
+Note that hand-written `replit.nix` files conflict with the
+`modules = ["python-3.11"]` line in `.replit` on modern Replit; if you
+go this route, drop the `modules` line first.
 
 ## Known limitations
 
