@@ -1,8 +1,0 @@
-modules = ["python-3.11"]
-entrypoint = "run.py"
-
-# The Run button launches the interactive pipeline menu defined in
-# run.py. To bypass the menu and wire Run to a specific stage, replace
-# the `run` line below — e.g. `run = "python3 run.py --retrain"` to
-# auto-run stages 2-5 every time you click Run.
-run = "python3 run.py"
