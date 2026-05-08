@@ -78,7 +78,7 @@ class Engine:
 
         grid = pd.DataFrame({
             "month_index": np.arange(1, remaining_term_months + 1),
-            "synthetic_period": [period] * remaining_term_months,
+            "synthetic_period": feature_path["period"].to_numpy(),
             "loan_age_months": [r["loan_age_months"] for r in scored_rows],
             "in_lockout": [r["in_lockout"] for r in scored_rows],
             "in_prepay_penalty": [r["in_prepay_penalty"] for r in scored_rows],
