@@ -24,6 +24,7 @@ from model.predict_python import _yyyymm, months_diff, predict_one
 
 from .aggregator import LifetimeCPRSummary, aggregate_lifetime_cpr
 from .amortization import scheduled_balances
+from .driver_attribution import compute_driver_attribution
 from .feature_path import build_forward_feature_path
 from .rate_scenario import RateScenario
 from .survival import simulate_survival
@@ -36,6 +37,8 @@ class LifetimeCPRResult:
     summary: LifetimeCPRSummary
     scenario: RateScenario
     loan_inputs: dict
+    driver_attribution: dict
+    baseline_lifetime_cpr_pct: float
 
 
 class Engine:
@@ -76,6 +79,12 @@ class Engine:
 
         survival, expected_balance, expected_prepay = simulate_survival(smm, sched)
         summary = aggregate_lifetime_cpr(smm, expected_balance)
+        deltas, baseline_cpr = compute_driver_attribution(
+            scored_rows=scored_rows,
+            scheduled_balance_path=sched,
+            cpr_scalar=float(cpr_scalar),
+            headline_lifetime_cpr_pct=summary.lifetime_cpr_pct,
+        )
 
         grid = pd.DataFrame({
             "month_index": np.arange(1, remaining_term_months + 1),
@@ -100,4 +109,6 @@ class Engine:
             summary=summary,
             scenario=scenario,
             loan_inputs=dict(loan),
+            driver_attribution=deltas,
+            baseline_lifetime_cpr_pct=baseline_cpr,
         )

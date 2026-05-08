@@ -55,6 +55,8 @@ def _result_to_payload(result: LifetimeCPRResult) -> dict:
         "scenario": asdict(result.scenario),
         "summary": _scrub(summary),
         "forward_grid": [_scrub(r) for r in grid],
+        "driver_attribution": _scrub(dict(result.driver_attribution)),
+        "baseline_lifetime_cpr_pct": _scrub(result.baseline_lifetime_cpr_pct),
     }
 
 
