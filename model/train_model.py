@@ -233,10 +233,11 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     # live signal lives in pool_type. LM (Mature/Modified) pools are
     # the destination of HUD's IRR re-securitisation refis (see SanCap
     # primer), so an LM-pool loan has already been refinanced once.
-    extras["is_lm_pool"] = df["is_lm_pool"].astype(int)
-    extras["is_pn_pool"] = df["is_pn_pool"].astype(int)
-    extras["is_ls_pool"] = df["is_ls_pool"].astype(int)
-    extras["is_rx_pool"] = df["is_rx_pool"].astype(int)
+    pool_type = df["pool_type"].fillna("").astype(str).str.strip()
+    extras["is_lm_pool"] = (pool_type == "LM").astype(int)
+    extras["is_pn_pool"] = (pool_type == "PN").astype(int)
+    extras["is_ls_pool"] = (pool_type == "LS").astype(int)
+    extras["is_rx_pool"] = (pool_type == "RX").astype(int)
 
     parts.append(extras)
     X = pd.concat(parts, axis=1)
