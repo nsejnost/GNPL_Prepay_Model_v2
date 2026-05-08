@@ -94,3 +94,68 @@ def test_engine_rejects_missing_note_rate_with_explicit_error():
 
     with pytest.raises(ValueError, match=r"note rate"):
         Engine().run(loan, scenario)
+
+
+def test_t0_agreement_forward_grid_month1_smm_matches_single_loan_scorer():
+    """The primary correctness guard: month 1 of the forward grid must
+    match the existing single-loan scorer's predicted_SMM exactly,
+    when the scorer is called with the rate scenario's refi rate
+    substituted for the per-period PLC lookup. If month 1 disagrees,
+    the entire downstream simulation is suspect."""
+    from model.predict_python import predict_one
+
+    loan = _sample_loan()
+    scenario = RateScenario(treasury_bps=400, spread_bps=100, parallel_shock_bps=0)
+
+    # Build the t=0 reference row exactly as the engine does: substitute
+    # the scenario refi rate for the PLC lookup, clear any pre-computed
+    # refi incentive override so the scorer derives from the override
+    # plc_rate_bps and the loan's note_rate.
+    ref_row = pd.Series({
+        **loan,
+        "plc_rate_bps": scenario.refi_rate_bps(),
+        "plc_rate_bps_input": scenario.refi_rate_bps(),
+        "refi_incentive_bps": float("nan"),
+        "prepay_penalty_points": float("nan"),    # let the scorer derive from prepay_end
+        "prepay_penalty_points_input": float("nan"),
+    })
+    snapshot = predict_one(ref_row)
+
+    result = Engine().run(loan, scenario)
+    forward_month1_smm = float(result.forward_grid["smm"].iloc[0])
+
+    assert forward_month1_smm == pytest.approx(
+        snapshot["predicted_SMM"], rel=1e-12, abs=1e-15
+    )
+
+
+def test_in_lockout_loan_has_lower_lifetime_cpr_than_unlocked_otherwise_identical():
+    """Lifetime CPR for a loan with lockout_end_date 12 months in the
+    future must be mechanically lower than the same loan with lockout
+    already past, because in-lockout months are hard-gated to zero
+    hazard. The drop should be on the order of 12 months of foregone
+    prepay opportunity."""
+    base = _sample_loan()
+    # Past-lockout copy: lockout_end_date one period before t=0 so
+    # in_lockout=0 from month 1.
+    past = dict(base)
+    past["lockout_end_date"] = 202602  # before period 202603
+    # In-lockout copy: lockout_end_date 12 months out under Convention B,
+    # so months 1..12 are hard-gated.
+    locked = dict(base)
+    locked["lockout_end_date"] = 202703  # period 202603 + 12 = 202703
+
+    scenario = RateScenario(treasury_bps=400, spread_bps=100)
+
+    past_result = Engine().run(past, scenario)
+    locked_result = Engine().run(locked, scenario)
+
+    # The locked loan must have a strictly lower lifetime CPR.
+    assert locked_result.summary.lifetime_cpr_pct < past_result.summary.lifetime_cpr_pct
+    # The first 12 months of the locked grid must show zero hazard;
+    # the past-lockout grid must show non-zero hazard at month 1.
+    np.testing.assert_array_equal(
+        locked_result.forward_grid["smm"].iloc[:12].to_numpy(),
+        np.zeros(12),
+    )
+    assert past_result.forward_grid["smm"].iloc[0] > 0
