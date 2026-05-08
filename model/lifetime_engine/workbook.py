@@ -97,13 +97,21 @@ class LifetimeCPRWorkbook:
 
     def _write_summary(self, ws) -> None:
         s = self.result.summary
-        rows = (
+        headline_rows = (
             ("lifetime_smm", s.lifetime_smm),
             ("lifetime_cpr_pct", s.lifetime_cpr_pct),
+            ("baseline_lifetime_cpr_pct", self.result.baseline_lifetime_cpr_pct),
             ("peak_smm", s.peak_smm),
             ("peak_smm_month", s.peak_smm_month),
             ("expected_total_prepay", s.expected_total_prepay),
         )
+        driver_rows = tuple(
+            sorted(
+                self.result.driver_attribution.items(),
+                key=lambda item: -abs(item[1]),
+            )
+        )
+        rows = headline_rows + driver_rows
         _write_key_value_sheet(ws, "Field", "Value", rows)
         note_row = len(rows) + 3
         ws.cell(
