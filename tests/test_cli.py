@@ -41,6 +41,27 @@ def test_cli_main_exits_zero_and_prints_valid_json(capsys):
     assert payload["forward_grid"][0]["month_index"] == 1
 
 
+def test_cli_json_includes_driver_attribution_and_baseline(capsys):
+    """Issue #13: CLI JSON output includes driver_attribution (one entry
+    per component family) and baseline_lifetime_cpr_pct."""
+    rc = main([
+        "--input", SAMPLE_PATH,
+        "--row", "0",
+        "--treasury-bps", "400",
+        "--spread-bps", "100",
+    ])
+    assert rc == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert "driver_attribution" in payload
+    assert "baseline_lifetime_cpr_pct" in payload
+
+    expected_components = {"REFI", "AGE", "PEN", "SATO", "SIZE", "M2M", "MPL",
+                           "INTERACT", "PHASE", "FHA", "PURPOSE", "AFF", "POOL"}
+    assert set(payload["driver_attribution"].keys()) == expected_components
+    assert isinstance(payload["baseline_lifetime_cpr_pct"], float)
+
+
 def test_cli_runs_as_module_and_returns_zero():
     """End-to-end: invoke as `python3 -m model.lifetime_engine.cli`
     so that the entry-point wiring is exercised, not just the main()

@@ -129,6 +129,67 @@ def test_t0_agreement_forward_grid_month1_smm_matches_single_loan_scorer():
     )
 
 
+def test_driver_attribution_has_one_entry_per_component_family():
+    """Issue #13 Slice 4: each component family (REFI, AGE, PEN, SATO, SIZE,
+    M2M, MPL, INTERACT, PHASE, FHA, PURPOSE, AFF, POOL) gets a CPR-equivalent
+    attribution entry."""
+    loan = _sample_loan()
+    scenario = RateScenario(treasury_bps=400, spread_bps=100)
+
+    result = Engine().run(loan, scenario)
+
+    expected_components = {"REFI", "AGE", "PEN", "SATO", "SIZE", "M2M", "MPL",
+                           "INTERACT", "PHASE", "FHA", "PURPOSE", "AFF", "POOL"}
+    assert set(result.driver_attribution.keys()) == expected_components
+    for k, v in result.driver_attribution.items():
+        assert np.isfinite(v), f"{k} = {v} is not finite"
+
+
+def test_driver_attribution_recomposition_recovers_headline_lifetime_cpr():
+    """Issue #13 acceptance criterion: sum of per-component deltas applied
+    to the baseline-only lifetime CPR recovers the headline lifetime CPR
+    within 50 bps absolute tolerance."""
+    loan = _sample_loan()
+    scenario = RateScenario(treasury_bps=400, spread_bps=100)
+
+    result = Engine().run(loan, scenario)
+
+    headline = result.summary.lifetime_cpr_pct
+    baseline = result.baseline_lifetime_cpr_pct
+    delta_sum = sum(result.driver_attribution.values())
+
+    assert abs((baseline + delta_sum) - headline) <= 0.5, (
+        f"recomposition off by more than 50 bps: "
+        f"baseline={baseline:.4f}, sum_deltas={delta_sum:.4f}, "
+        f"headline={headline:.4f}"
+    )
+
+
+def test_fully_locked_out_loan_has_zero_attribution_and_zero_baseline():
+    """A loan whose entire forward horizon falls inside the lockout window
+    has SMM=0 every month (hard-gated). Both the headline lifetime CPR
+    and the baseline-only lifetime CPR are zero, so every per-component
+    delta must be zero as well (no contribution, nothing to attribute)."""
+    base = _sample_loan()
+    fully_locked = dict(base)
+    # Push lockout end past the loan maturity (20610101 → use a
+    # YYYYMM well past maturity: the trailing month index is
+    # remaining_term_months from period 202603 → 418 months. Setting the
+    # lockout end to 209901 is comfortably past.
+    fully_locked["lockout_end_date"] = 20990101
+    fully_locked["prepay_end_date"] = 20990101
+
+    scenario = RateScenario(treasury_bps=400, spread_bps=100)
+    result = Engine().run(fully_locked, scenario)
+
+    # Every SMM in the forward grid is zero (hard-gated).
+    assert (result.forward_grid["smm"].to_numpy() == 0).all()
+    assert result.summary.lifetime_cpr_pct == 0.0
+    assert result.baseline_lifetime_cpr_pct == 0.0
+    for c, v in result.driver_attribution.items():
+        assert v == 0.0, f"{c} delta must be zero for a fully locked-out loan, got {v}"
+
+
 def test_in_lockout_loan_has_lower_lifetime_cpr_than_unlocked_otherwise_identical():
     """Lifetime CPR for a loan with lockout_end_date 12 months in the
     future must be mechanically lower than the same loan with lockout
