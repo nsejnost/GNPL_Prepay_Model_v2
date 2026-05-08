@@ -35,6 +35,7 @@ class LifetimeCPRResult:
     forward_grid: pd.DataFrame
     summary: LifetimeCPRSummary
     scenario: RateScenario
+    loan_inputs: dict
 
 
 class Engine:
@@ -94,4 +95,9 @@ class Engine:
             "survival": survival,
         })
 
-        return LifetimeCPRResult(forward_grid=grid, summary=summary, scenario=scenario)
+        return LifetimeCPRResult(
+            forward_grid=grid,
+            summary=summary,
+            scenario=scenario,
+            loan_inputs=dict(loan),
+        )

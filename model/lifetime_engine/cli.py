@@ -16,6 +16,7 @@ import pandas as pd
 
 from .engine import Engine, LifetimeCPRResult
 from .rate_scenario import RateScenario
+from .workbook import LifetimeCPRWorkbook
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -31,6 +32,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cpr-scalar", type=float, default=1.0,
                    help="OPTIONAL_CPR_SCALAR multiplier applied to the SMM path")
     p.add_argument("--io-months", type=int, default=0)
+    p.add_argument(
+        "--output",
+        default=None,
+        help="Optional path for an Excel workbook (Inputs/Scenario/ForwardGrid/Summary)",
+    )
     return p
 
 
@@ -78,6 +84,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         cpr_scalar=args.cpr_scalar,
         io_months=args.io_months,
     )
+    if args.output:
+        LifetimeCPRWorkbook(result).write(args.output)
     print(json.dumps(_result_to_payload(result)))
     return 0
 
