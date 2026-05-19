@@ -70,7 +70,7 @@ log( SMM/(1−SMM) ) = β₀
                      + Σ β_fha·1[fha_category]            ← FHA program (vs 223f)
                      + β_nc·1[loan_purpose = NC]          ← purpose
                      + Σ β_aff·1[affordable_status]       ← affordable
-                     + β_mod·1[modified] + β_nl·1[non-level] + β_mat·1[mature]
+                     + Σ β_pool·1[pool_type]                ← pool-type (LM/PN/LS/RX)
 ```
 
 `f_x(·)` is a hinge basis: `f(x) = β_lin·x + Σ β_k·max(x − knot_k, 0)`,

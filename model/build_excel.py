@@ -165,7 +165,7 @@ README_LINES = [
     ("  •  FHA program category dummies (221d4, 223a7, 232, 538, 241, 220, OTHER vs 223f).", None, None),
     ("  •  Loan purpose (NC vs RP).", None, None),
     ("  •  Affordable status (AFF/BAF/MKT vs unknown).", None, None),
-    ("  •  Modification / non-level / mature loan flags.", None, None),
+    ("  •  Pool-type dummies (LM/PN/LS/RX vs reference).", None, None),
     ("", None, None),
     ("VALIDATION", BOLD, 12),
     (f"Train AUC: {META['train_auc']:.3f}, predicted CPR "
@@ -1079,7 +1079,7 @@ def write_deal_summary(ws, loan_ws, n_loans):
         "wtd_attr_REFI", "wtd_attr_AGE", "wtd_attr_PEN", "wtd_attr_SATO",
         "wtd_attr_SIZE", "wtd_attr_M2M", "wtd_attr_MPL", "wtd_attr_INTERACT",
         "wtd_attr_PHASE", "wtd_attr_FHA", "wtd_attr_PURPOSE",
-        "wtd_attr_AFF", "wtd_attr_MOD",
+        "wtd_attr_AFF", "wtd_attr_POOL",
         # Composition
         "pct_NC", "pct_232", "pct_221d4", "pct_223f", "pct_223a7",
         "pct_538", "pct_AFF_or_BAF",
@@ -1327,7 +1327,7 @@ def write_deal_comparison(ws):
         ("CPR attr: FHA",               24,  "0.00",    "FHA program (vs 223f)"),
         ("CPR attr: PURPOSE",           25,  "0.00",    "NC vs RP"),
         ("CPR attr: AFFORDABLE",        26,  "0.00",    "AFF/BAF/MKT vs unknown"),
-        ("CPR attr: MOD",               27,  "0.00",    "Modified / non-level / mature"),
+        ("CPR attr: POOL",              27,  "0.00",    "Pool type (LM/PN/LS/RX dummies)"),
         # Composition
         ("Composition: % NC",           28,  "0.0%",    ""),
         ("Composition: % 232 healthcare", 29,  "0.0%",  ""),
