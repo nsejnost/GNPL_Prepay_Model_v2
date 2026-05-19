@@ -236,6 +236,79 @@ def test_summary_sheet_references_optional_cpr_scalar_for_level_adjustment(tmp_p
     assert "OPTIONAL_CPR_SCALAR" in text_blob
 
 
+def test_summary_sheet_includes_baseline_lifetime_cpr_pct(tmp_path):
+    """Issue #13 deferred follow-up: baseline_lifetime_cpr_pct is surfaced
+    on the Summary sheet so the user can read
+    `baseline + sum(drivers) == headline` directly off the workbook
+    (per ADR-0001's recomposition contract)."""
+    _, _, result = _build_result()
+    out = tmp_path / "lifetime.xlsx"
+
+    LifetimeCPRWorkbook(result).write(str(out))
+
+    ws = openpyxl.load_workbook(str(out))["Summary"]
+    cell = _find_label_value(ws, "baseline_lifetime_cpr_pct")
+    assert cell == pytest.approx(
+        result.baseline_lifetime_cpr_pct, rel=1e-12, abs=1e-15
+    )
+
+
+def test_summary_sheet_has_one_row_per_driver_attribution_component(tmp_path):
+    """Issue #13 deferred follow-up: the Summary sheet renders a
+    'Lifetime CPR drivers' table with one row per component family from
+    `LifetimeCPRResult.driver_attribution` (REFI, AGE, PEN, SATO, SIZE,
+    M2M, MPL, INTERACT, PHASE, FHA, PURPOSE, AFF, POOL)."""
+    _, _, result = _build_result()
+    out = tmp_path / "lifetime.xlsx"
+
+    LifetimeCPRWorkbook(result).write(str(out))
+
+    ws = openpyxl.load_workbook(str(out))["Summary"]
+    labels_present = _column_a_labels(ws)
+    for component in result.driver_attribution.keys():
+        assert component in labels_present, (
+            f"Summary sheet missing driver row for {component!r}"
+        )
+
+
+def test_summary_driver_rows_round_trip_attribution_values(tmp_path):
+    """Issue #13 deferred follow-up: each driver row's value cell equals
+    the engine's `driver_attribution[component]` (in CPR percent, the
+    same unit as `lifetime_cpr_pct`, so `baseline + sum(deltas) ==
+    headline` round-trips on-sheet per ADR-0001)."""
+    _, _, result = _build_result()
+    out = tmp_path / "lifetime.xlsx"
+
+    LifetimeCPRWorkbook(result).write(str(out))
+
+    ws = openpyxl.load_workbook(str(out))["Summary"]
+    for component, expected in result.driver_attribution.items():
+        cell_value = _find_label_value(ws, component)
+        assert cell_value == pytest.approx(expected, rel=1e-12, abs=1e-15), (
+            f"driver row {component!r}: cell={cell_value!r}, expected={expected!r}"
+        )
+
+
+def test_summary_driver_rows_are_sorted_by_absolute_delta_descending(tmp_path):
+    """Issue #13 deferred follow-up: the driver-attribution rows on the
+    Summary sheet are ordered by |delta| descending so the largest
+    contributors (positive or negative) sit at the top of the table."""
+    _, _, result = _build_result()
+    out = tmp_path / "lifetime.xlsx"
+
+    LifetimeCPRWorkbook(result).write(str(out))
+
+    ws = openpyxl.load_workbook(str(out))["Summary"]
+    labels = _column_a_labels(ws)
+    components = set(result.driver_attribution.keys())
+    on_sheet_order = [lbl for lbl in labels if lbl in components]
+    expected_order = sorted(
+        result.driver_attribution.keys(),
+        key=lambda c: -abs(result.driver_attribution[c]),
+    )
+    assert on_sheet_order == expected_order
+
+
 def test_forward_grid_month1_smm_round_trips_through_workbook(tmp_path):
     """The forward grid's month-1 SMM cell, after round-tripping through
     Excel, must equal the engine result's forward_grid month-1 SMM. By
