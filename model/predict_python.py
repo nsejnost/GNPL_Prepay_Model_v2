@@ -281,9 +281,12 @@ def predict_one(row: pd.Series) -> dict:
             cpr_wo = (1 - (1 - smm_wo) ** 12) * 100
             attr[k] = cpr - cpr_wo
 
-    # Baseline CPR (intercept only)
-    baseline_smm = 1.0 / (1.0 + np.exp(-INTERCEPT))
-    baseline_cpr = (1 - (1 - baseline_smm) ** 12) * 100
+    # Baseline CPR (intercept only), lockout-gated to match predicted CPR.
+    if in_lockout:
+        baseline_cpr = 0.0
+    else:
+        baseline_smm = 1.0 / (1.0 + np.exp(-INTERCEPT))
+        baseline_cpr = (1 - (1 - baseline_smm) ** 12) * 100
 
     out = {
         "in_lockout":       in_lockout,
