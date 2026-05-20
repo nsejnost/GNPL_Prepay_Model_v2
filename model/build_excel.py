@@ -977,9 +977,12 @@ def write_loan_input(ws) -> int:
         f(HC["predicted_CPR_pct"],
           f'=(1-(1-{HC["predicted_SMM"]}{r})^12)*100')
 
-        # Baseline CPR = sigmoid(intercept)
+        # Baseline CPR = sigmoid(intercept), lockout-gated so a locked
+        # loan contributes 0 to the weighted baseline — matching the
+        # same gate already on predicted_SMM and every CPR_attr_*.
         f(HC["baseline_CPR_pct"],
-          "=(1-(1-1/(1+EXP(-Parameters!$B$2)))^12)*100")
+          f'=IF({HC["in_lockout"]}{r}=1,0,'
+          f'(1-(1-1/(1+EXP(-Parameters!$B$2)))^12)*100)')
 
         # Component attribution: how many CPR percentage points the
         # component is contributing on the margin.  We take the

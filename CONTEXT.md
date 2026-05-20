@@ -58,9 +58,10 @@ for tie-out residuals on the shipped demo data).
 
 **Baseline CPR.** `baseline_CPR_pct` (Loan_Input col BW) is the
 intercept-only annualized CPR — `(1 − (1 − logistic(intercept))¹²)·100`
-≈ 1.645%. It is **not** currently lockout-gated, so a locked loan
-contributes 0 to predicted CPR but 1.645 to weighted baseline; this
-adds a small additional component to ε on deals with locked loans.
+≈ 1.645%. It is lockout-gated the same way `predicted_SMM` and every
+`CPR_attr_*` is — `in_lockout = 1 → 0` — so locked loans contribute
+zero to both the weighted baseline and the weighted predicted CPR,
+keeping the per-loan reconciliation on `Deal_Comparison` symmetric.
 
 **Row-27 label drift.** `Deal_Comparison!A27` reads "CPR attr: MOD"
 ("Modified / non-level / mature"), but it pulls `Deal_Summary!AA` =
